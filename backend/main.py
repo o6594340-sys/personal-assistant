@@ -430,6 +430,18 @@ def toggle_task(task_id: int):
     return task
 
 
+@app.get("/api/calendar")
+def get_calendar(year: int, month: int):
+    with db() as conn:
+        rows = conn.execute(
+            "SELECT date, COUNT(*) as cnt FROM tasks "
+            "WHERE strftime('%Y', date) = ? AND strftime('%m', date) = ? "
+            "GROUP BY date",
+            (str(year), f"{month:02d}"),
+        ).fetchall()
+    return {row["date"]: row["cnt"] for row in rows}
+
+
 @app.delete("/api/tasks/{task_id}", status_code=204)
 def delete_task(task_id: int):
     with db() as conn:

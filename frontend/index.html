@@ -128,15 +128,31 @@
     <div class="projects-grid" id="projects-grid"></div>
   </section>
 
+  <!-- ===== SCREEN: Calendar ===== -->
+  <section class="screen" id="screen-calendar">
+    <div class="screen-header">
+      <h1>Календарь</h1>
+    </div>
+    <div id="calendar-widget"></div>
+    <div id="calendar-day-section" style="display:none">
+      <div class="section-divider" style="margin:16px 0"></div>
+      <div class="section-header" style="margin-bottom:8px">
+        <h2 id="calendar-day-title" style="margin-bottom:0"></h2>
+        <button class="add-btn" id="calendarAddBtn" style="padding:6px 14px;font-size:13px;margin-left:auto">+ Задача</button>
+      </div>
+      <div class="task-list" id="calendar-day-tasks"></div>
+    </div>
+  </section>
+
   <!-- ===== Bottom Navigation ===== -->
   <nav class="bottom-nav">
     <button class="nav-btn active" data-screen="morning">
       <span class="icon">☀️</span>
       <span>Сегодня</span>
     </button>
-    <button class="nav-btn" data-screen="evening">
-      <span class="icon">🌙</span>
-      <span>Вечер</span>
+    <button class="nav-btn" data-screen="calendar">
+      <span class="icon">📅</span>
+      <span>Кал.</span>
     </button>
     <button class="nav-btn voice-btn" id="voiceNavBtn">
       <span class="icon">🎤</span>

@@ -55,6 +55,7 @@ const API = {
     const qs = forDate ? `?for_date=${forDate}` : '';
     return this.get(`/api/tasks${qs}`);
   },
+  getCalendar(year, month) { return this.get(`/api/calendar?year=${year}&month=${month}`); },
   createTask(data)       { return this.post('/api/tasks', data); },
   updateTask(id, data)   { return this.put(`/api/tasks/${id}`, data); },
   toggleTask(id)         { return this.put(`/api/tasks/${id}/toggle`); },

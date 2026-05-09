@@ -20,6 +20,7 @@ const App = (() => {
       case 'ideas':    await loadIdeas();    break;
       case 'horizon':  await loadHorizon();  break;
       case 'projects': await loadProjects(); break;
+      case 'calendar': await loadCalendar(); break;
     }
   }
 
@@ -205,6 +206,123 @@ const App = (() => {
       } catch (e) { showToast(`Ошибка: ${e.message}`); }
     });
     return div;
+  }
+
+  // ===== Calendar Screen =====
+  let calYear  = new Date().getFullYear();
+  let calMonth = new Date().getMonth() + 1;
+  let calDots  = {};
+  let calSelectedDate = null;
+
+  async function loadCalendar() {
+    await renderCalendarGrid();
+  }
+
+  async function renderCalendarGrid() {
+    const widget = document.getElementById('calendar-widget');
+    widget.innerHTML = '';
+
+    let dots = {};
+    try {
+      dots = await API.getCalendar(calYear, calMonth);
+      calDots = dots;
+    } catch (_) {}
+
+    const monthNames = ['Январь','Февраль','Март','Апрель','Май','Июнь',
+                        'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+    const dayNames = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+
+    // Header with navigation
+    const header = document.createElement('div');
+    header.className = 'cal-header';
+    header.innerHTML = `
+      <button class="cal-nav-btn" id="calPrev">‹</button>
+      <span class="cal-month-title">${monthNames[calMonth-1]} ${calYear}</span>
+      <button class="cal-nav-btn" id="calNext">›</button>
+    `;
+    widget.appendChild(header);
+
+    // Day names row
+    const namesRow = document.createElement('div');
+    namesRow.className = 'cal-grid';
+    dayNames.forEach(d => {
+      const cell = document.createElement('div');
+      cell.className = 'cal-day-name';
+      cell.textContent = d;
+      namesRow.appendChild(cell);
+    });
+    widget.appendChild(namesRow);
+
+    // Days grid
+    const grid = document.createElement('div');
+    grid.className = 'cal-grid';
+
+    const today = todayISO();
+    const firstDay = new Date(calYear, calMonth - 1, 1);
+    // Monday-based: 0=Mon, 6=Sun
+    let startOffset = (firstDay.getDay() + 6) % 7;
+    const daysInMonth = new Date(calYear, calMonth, 0).getDate();
+
+    // Empty cells before first day
+    for (let i = 0; i < startOffset; i++) {
+      grid.appendChild(document.createElement('div'));
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const iso = `${calYear}-${String(calMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const cell = document.createElement('button');
+      cell.className = 'cal-day';
+      if (iso === today) cell.classList.add('today');
+      if (iso === calSelectedDate) cell.classList.add('selected');
+      cell.innerHTML = `<span>${d}</span>${dots[iso] ? '<i class="cal-dot"></i>' : ''}`;
+      cell.addEventListener('click', () => selectCalendarDay(iso));
+      grid.appendChild(cell);
+    }
+
+    widget.appendChild(grid);
+
+    document.getElementById('calPrev').addEventListener('click', () => {
+      calMonth--;
+      if (calMonth < 1) { calMonth = 12; calYear--; }
+      renderCalendarGrid();
+    });
+    document.getElementById('calNext').addEventListener('click', () => {
+      calMonth++;
+      if (calMonth > 12) { calMonth = 1; calYear++; }
+      renderCalendarGrid();
+    });
+  }
+
+  async function selectCalendarDay(iso) {
+    calSelectedDate = iso;
+    renderCalendarGrid();
+
+    const section = document.getElementById('calendar-day-section');
+    const titleEl = document.getElementById('calendar-day-title');
+    const listEl  = document.getElementById('calendar-day-tasks');
+
+    titleEl.textContent = formatDate(iso);
+    section.style.display = 'block';
+    listEl.innerHTML = '<div class="loading-spinner">Загрузка</div>';
+
+    // Add task button for this date
+    const addBtn = document.getElementById('calendarAddBtn');
+    addBtn.onclick = async () => {
+      if (projects.length === 0) projects = await API.getProjects().catch(() => []);
+      openModal('task', { date: iso });
+    };
+
+    try {
+      const tasks = await API.getTasks(iso);
+      listEl.innerHTML = '';
+      if (tasks.length === 0) {
+        listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">○</div>Нет задач на этот день</div>';
+      } else {
+        tasks.forEach(t => listEl.appendChild(buildTaskItem(t, () => selectCalendarDay(iso))));
+      }
+    } catch (err) {
+      listEl.innerHTML = `<div class="empty-state" style="color:#EF4444">${err.message}</div>`;
+    }
   }
 
   // ===== Projects Screen =====
