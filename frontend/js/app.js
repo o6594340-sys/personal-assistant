@@ -242,6 +242,7 @@ const App = (() => {
           ${timeStr}${projStr}
         </div>
       </div>
+      ${onRefresh ? '<button class="task-edit-btn" title="Редактировать">✎</button>' : ''}
       ${onRefresh ? '<button class="task-delete-btn" title="Удалить">×</button>' : ''}
     `;
 
@@ -255,6 +256,14 @@ const App = (() => {
           checkbox.checked = !checkbox.checked;
           showToast(`Ошибка: ${e.message}`);
         }
+      });
+    }
+
+    const editBtn = div.querySelector('.task-edit-btn');
+    if (editBtn && onRefresh) {
+      editBtn.addEventListener('click', async () => {
+        if (projects.length === 0) projects = await API.getProjects().catch(() => []);
+        openModal('task', task);
       });
     }
 
@@ -277,10 +286,12 @@ const App = (() => {
   // ===== Modal =====
   let modalMode = 'task'; // 'task' | 'idea' | 'horizon'
   let selectedType = 'work';
+  let editingTaskId = null;
 
-  function openModal(mode) {
+  function openModal(mode, prefill) {
     modalMode = mode;
     selectedType = 'work';
+    editingTaskId = null;
 
     const overlay = document.getElementById('modalOverlay');
     const title   = document.getElementById('modalTitle');
@@ -288,14 +299,17 @@ const App = (() => {
     forms.forEach(f => f.style.display = 'none');
 
     if (mode === 'task') {
-      title.textContent = 'Новая задача';
+      const isEdit = prefill && prefill.id;
+      editingTaskId = isEdit ? prefill.id : null;
+      title.textContent = isEdit ? 'Редактировать задачу' : 'Новая задача';
       document.getElementById('taskForm').style.display = 'block';
-      document.getElementById('taskDate').value = todayISO();
-      document.getElementById('taskTitle').value = '';
-      document.getElementById('taskTime').value = '';
-      document.getElementById('taskProject').value = '';
-      selectType('work');
-      populateProjectSelect();
+      document.getElementById('taskDate').value = prefill?.date || todayISO();
+      document.getElementById('taskTitle').value = prefill?.title || '';
+      document.getElementById('taskTime').value = prefill?.time_start ? prefill.time_start.slice(0,5) : '';
+      document.getElementById('taskProject').value = prefill?.project_id || '';
+      selectType(prefill?.type || 'work');
+      populateProjectSelect(prefill?.project_id);
+      document.getElementById('taskSubmitBtn').textContent = isEdit ? 'Сохранить' : 'Сохранить';
     } else if (mode === 'idea') {
       title.textContent = 'Новая идея';
       document.getElementById('ideaForm').style.display = 'block';
@@ -326,13 +340,14 @@ const App = (() => {
     });
   }
 
-  function populateProjectSelect() {
+  function populateProjectSelect(selectedId) {
     const sel = document.getElementById('taskProject');
     sel.innerHTML = '<option value="">Без проекта</option>';
     projects.forEach(p => {
       const opt = document.createElement('option');
       opt.value = p.id;
       opt.textContent = p.name;
+      if (selectedId && p.id === selectedId) opt.selected = true;
       sel.appendChild(opt);
     });
   }
@@ -352,15 +367,22 @@ const App = (() => {
     btn.textContent = 'Сохраняю...';
 
     try {
-      await API.createTask({
+      const payload = {
         title,
         type: selectedType,
         date,
         time_start: time || null,
         project_id: proj ? parseInt(proj) : null,
-      });
-      closeModal();
-      showToast('Задача добавлена');
+      };
+      if (editingTaskId) {
+        await API.updateTask(editingTaskId, payload);
+        closeModal();
+        showToast('Задача обновлена');
+      } else {
+        await API.createTask(payload);
+        closeModal();
+        showToast('Задача добавлена');
+      }
       if (currentScreen === 'morning') loadMorning();
     } catch (e) {
       showToast(`Ошибка: ${e.message}`);

@@ -56,6 +56,7 @@ const API = {
     return this.get(`/api/tasks${qs}`);
   },
   createTask(data)       { return this.post('/api/tasks', data); },
+  updateTask(id, data)   { return this.put(`/api/tasks/${id}`, data); },
   toggleTask(id)         { return this.put(`/api/tasks/${id}/toggle`); },
   deleteTask(id)         { return this.delete(`/api/tasks/${id}`); },
 

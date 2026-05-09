@@ -392,6 +392,26 @@ def create_task(body: TaskCreate):
     return task
 
 
+@app.put("/api/tasks/{task_id}")
+def update_task(task_id: int, body: TaskCreate):
+    with db() as conn:
+        row = conn.execute("SELECT id FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Задача не найдена")
+        conn.execute(
+            "UPDATE tasks SET title=?, type=?, date=?, time_start=?, project_id=? WHERE id=?",
+            (body.title, body.type, body.date, body.time_start, body.project_id, task_id),
+        )
+        task = row_to_dict(
+            conn.execute(
+                "SELECT t.*, p.name as project_name, p.color as project_color "
+                "FROM tasks t LEFT JOIN projects p ON t.project_id = p.id WHERE t.id = ?",
+                (task_id,),
+            ).fetchone()
+        )
+    return task
+
+
 @app.put("/api/tasks/{task_id}/toggle")
 def toggle_task(task_id: int):
     with db() as conn:
