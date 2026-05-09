@@ -692,6 +692,12 @@ h3 { font-size: 15px; font-weight: 600; }
   background: var(--gold);
 }
 .cal-day.selected .cal-dot { background: #1A1A2E; }
+.task-recur {
+  font-size: 12px;
+  color: var(--muted);
+  margin-left: 5px;
+  vertical-align: middle;
+}
 
 /* ===== Toast ===== */
 .toast {

@@ -370,11 +370,12 @@ const App = (() => {
       : '';
     const type = task.type || 'work';
 
+    const recurStr = task.recurrence_id ? '<span class="task-recur" title="Повторяющаяся задача">↻</span>' : '';
     div.innerHTML = `
       <input type="checkbox" class="task-check" ${task.completed ? 'checked' : ''}>
       <div class="task-dot ${type}"></div>
       <div class="task-body">
-        <div class="task-title">${escHtml(task.title)}</div>
+        <div class="task-title">${escHtml(task.title)}${recurStr}</div>
         <div class="task-meta">
           <span class="task-type-badge ${type}">${typeLabel(type)}</span>
           ${timeStr}${projStr}

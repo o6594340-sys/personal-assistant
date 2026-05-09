@@ -1,5 +1,6 @@
 import os
 import json
+import uuid
 import sqlite3
 from datetime import date, datetime, timedelta
 from contextlib import contextmanager
@@ -87,6 +88,12 @@ def init_db():
                 author TEXT NOT NULL
             );
         """)
+
+        # Migrations
+        try:
+            conn.execute("ALTER TABLE tasks ADD COLUMN recurrence_id TEXT")
+        except Exception:
+            pass  # Column already exists
 
         # Seed default projects if empty
         count = conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
@@ -182,20 +189,45 @@ def ai_evening_summary(done: list, undone: list) -> str:
     return message.content[0].text.strip()
 
 
+_WEEKDAY_MAP = {
+    "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+    "friday": 4, "saturday": 5, "sunday": 6,
+}
+
+
+def generate_recurring_dates(recurrence: str, recurrence_days: list, date_start: str, date_until: str | None) -> list[str]:
+    target = [_WEEKDAY_MAP[d.lower()] for d in (recurrence_days or []) if d.lower() in _WEEKDAY_MAP]
+    start = date.fromisoformat(date_start)
+    end = date.fromisoformat(date_until) if date_until else start + timedelta(days=365)
+    result = []
+    cur = start
+    while cur <= end:
+        if recurrence == "weekly" and cur.weekday() in target:
+            result.append(cur.isoformat())
+        elif recurrence == "daily":
+            result.append(cur.isoformat())
+        cur += timedelta(days=1)
+    return result
+
+
 def ai_parse_voice(text: str, today: str) -> dict:
     prompt = (
-        f"Сегодня {today}. Пользователь надиктовал голосом — текст получен через распознавание речи, могут быть ошибки и опечатки: «{text}». "
-        "Исправь очевидные ошибки распознавания и пойми смысл. Определи: это задача или идея. "
-        "Если задача — сформулируй название чётко (исправив ошибки речи), определи тип и дату. "
-        "Типы: work = работа/встречи/звонки/бизнес; personal = семья/дом/личные дела; rest = прогулка/отдых/спорт/спа/красота; growth = обучение/чтение/курсы/развитие. "
-        "Если идея — кратко сформулируй суть и дату напоминания если упомянута. "
-        "Дни недели считай от сегодня вперёд. Если сказано 'завтра' — следующий день, 'в пятницу' — ближайшая пятница. "
+        f"Сегодня {today}. Пользователь надиктовал голосом (может быть ошибки распознавания): «{text}». "
+        "Исправь ошибки и определи: задача, повторяющаяся задача или идея. "
+        "ЕСЛИ упомянуты повторения (каждый понедельник, каждую пятницу, ежедневно, по вторникам и т.д.) — это recurring_task. "
+        "Типы задач: work=работа/встречи/бизнес; personal=семья/дом/личное; rest=прогулка/отдых/спорт/красота; growth=обучение/развитие. "
+        "Дни недели вперёд от сегодня. "
+        "Для recurrence_days используй ТОЛЬКО английские названия: monday/tuesday/wednesday/thursday/friday/saturday/sunday. "
+        "Для recurrence: weekly (раз в неделю) или daily (каждый день). "
         "Ответь строго JSON без пояснений: "
-        "{\"type\": \"task|idea\", \"title\": \"...\", "
+        "{\"type\": \"task|recurring_task|idea\", \"title\": \"...\", "
         "\"task_type\": \"work|personal|rest|growth\", "
         "\"date\": \"YYYY-MM-DD или null\", "
         "\"time_start\": \"HH:MM или null\", "
-        "\"remind_at\": \"YYYY-MM-DD или null\"}"
+        "\"remind_at\": \"YYYY-MM-DD или null\", "
+        "\"recurrence\": \"weekly|daily|null\", "
+        "\"recurrence_days\": [\"monday\",...] или [], "
+        "\"date_until\": \"YYYY-MM-DD или null\"}"
     )
     client = ai_client()
     message = client.messages.create(
@@ -461,18 +493,40 @@ def voice_input(body: VoiceInput):
     parsed = ai_parse_voice(body.text, today)
 
     item_type = parsed.get("type", "idea")
+    title = parsed.get("title", body.text[:100])
+    task_type = parsed.get("task_type", "personal")
+    time_start = parsed.get("time_start")
 
-    if item_type == "task":
+    # Recurring task
+    if item_type == "recurring_task" or (item_type == "task" and parsed.get("recurrence")):
+        rec_id = uuid.uuid4().hex[:10]
+        dates = generate_recurring_dates(
+            parsed.get("recurrence", "weekly"),
+            parsed.get("recurrence_days", []),
+            parsed.get("date") or today,
+            parsed.get("date_until"),
+        )
+        if dates:
+            with db() as conn:
+                for d in dates:
+                    conn.execute(
+                        "INSERT INTO tasks (title, type, date, time_start, recurrence_id) VALUES (?, ?, ?, ?, ?)",
+                        (title, task_type, d, time_start, rec_id),
+                    )
+            return {
+                "type": "task",
+                "recurring": True,
+                "count": len(dates),
+                "message": f"Добавлено {len(dates)} повторений: «{title}»",
+            }
+
+    # Single task
+    if item_type in ("task", "recurring_task"):
         task_date = parsed.get("date") or today
         with db() as conn:
             cur = conn.execute(
                 "INSERT INTO tasks (title, type, date, time_start) VALUES (?, ?, ?, ?)",
-                (
-                    parsed.get("title", body.text[:100]),
-                    parsed.get("task_type", "work"),
-                    task_date,
-                    parsed.get("time_start"),
-                ),
+                (title, task_type, task_date, time_start),
             )
             new_id = cur.lastrowid
         return {
@@ -481,19 +535,20 @@ def voice_input(body: VoiceInput):
             "message": f"Задача добавлена на {task_date}",
             "parsed": parsed,
         }
-    else:
-        with db() as conn:
-            cur = conn.execute(
-                "INSERT INTO ideas (content, remind_at) VALUES (?, ?)",
-                (parsed.get("title", body.text), parsed.get("remind_at")),
-            )
-            new_id = cur.lastrowid
-        return {
-            "type": "idea",
-            "id": new_id,
-            "message": "Идея сохранена",
-            "parsed": parsed,
-        }
+
+    # Idea
+    with db() as conn:
+        cur = conn.execute(
+            "INSERT INTO ideas (content, remind_at) VALUES (?, ?)",
+            (parsed.get("title", body.text), parsed.get("remind_at")),
+        )
+        new_id = cur.lastrowid
+    return {
+        "type": "idea",
+        "id": new_id,
+        "message": "Идея сохранена",
+        "parsed": parsed,
+    }
 
 
 # ---------------------------------------------------------------------------
