@@ -1,0 +1,20 @@
+# Environment
+.env
+
+# Database
+backend/assistant.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Word temp files
+~$*.docx

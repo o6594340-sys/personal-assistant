@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#C8A96E">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Ассистент">
+  <title>Мой ассистент</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ===== SCREEN: Morning ===== -->
+  <section class="screen active" id="screen-morning">
+    <div class="screen-header">
+      <h1>Доброе утро ✦</h1>
+      <span class="screen-date" id="morning-date"></span>
+    </div>
+
+    <div id="morning-content">
+      <!-- Quote -->
+      <div class="card quote-card">
+        <div class="quote-text quote-loading">Загружаю цитату дня…</div>
+        <div class="quote-author"></div>
+      </div>
+
+      <!-- Evening suggestion (shown after 18:00) -->
+      <div class="warn-banner evening-suggestion" id="eveningSuggestion" style="display:none;background:#F0FDF4;border-color:#86EFAC;color:#166534;">
+        <span class="warn-icon">🌙</span>
+        <span>Уже вечер. Хотите подвести итоги дня?</span>
+        <button id="goToEveningBtn" style="margin-left:auto;background:#16A34A;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:500;font-family:inherit">Итог дня</button>
+      </div>
+
+      <!-- No-rest warning -->
+      <div class="warn-banner warn-no-rest" id="warnNoRest" style="display:none">
+        <span class="warn-icon">⚠️</span>
+        <span>В плане только рабочие задачи. Добавьте время для отдыха или прогулки.</span>
+      </div>
+
+      <!-- Tasks section -->
+      <div class="section-header" style="margin-top:20px">
+        <h2 style="margin-bottom:0">Сегодня</h2>
+      </div>
+      <div class="task-list" id="morning-tasks"></div>
+      <button class="add-btn" id="addTaskBtn">
+        <span style="font-size:18px;line-height:1">+</span> Добавить задачу
+      </button>
+    </div>
+  </section>
+
+  <!-- ===== SCREEN: Evening ===== -->
+  <section class="screen" id="screen-evening">
+    <div class="screen-header">
+      <h1>Итог дня</h1>
+      <span class="screen-date"></span>
+    </div>
+    <p class="evening-header-text">Невыполненные задачи автоматически перенесены на завтра</p>
+
+    <div id="evening-content">
+      <!-- AI Summary -->
+      <div class="card">
+        <div class="summary-label">Оценка дня</div>
+        <div class="summary-text">Загрузка…</div>
+      </div>
+
+      <!-- Completed -->
+      <div class="section-header">
+        <h2>Выполнено</h2>
+      </div>
+      <div class="task-list done-list"></div>
+
+      <!-- Moved -->
+      <div class="moved-section" style="display:none">
+        <div class="section-divider"></div>
+        <div class="section-header">
+          <h2>Перенесено на завтра</h2>
+        </div>
+        <div class="task-list moved-list"></div>
+      </div>
+
+      <!-- Tomorrow -->
+      <div class="section-divider"></div>
+      <div class="section-header">
+        <h2>План на завтра</h2>
+      </div>
+      <div class="task-list tomorrow-list"></div>
+    </div>
+  </section>
+
+  <!-- ===== SCREEN: Ideas ===== -->
+  <section class="screen" id="screen-ideas">
+    <div class="screen-header">
+      <h1>Банк идей</h1>
+    </div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:16px">Идеи здесь не теряются. Всё сохраняется.</p>
+    <div class="ideas-list task-list" id="ideas-list"></div>
+    <button class="add-btn" id="addIdeaBtn">
+      <span style="font-size:18px;line-height:1">+</span> Записать идею
+    </button>
+  </section>
+
+  <!-- ===== SCREEN: Horizon ===== -->
+  <section class="screen" id="screen-horizon">
+    <div class="screen-header">
+      <h1>Горизонт</h1>
+    </div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:16px">Большие намерения без конкретных дат. То, что важно.</p>
+    <div class="horizon-list task-list" id="horizon-list"></div>
+    <button class="add-btn" id="addHorizonBtn">
+      <span style="font-size:18px;line-height:1">+</span> Добавить намерение
+    </button>
+    <div class="section-divider" style="margin-top:24px"></div>
+    <button class="add-btn" onclick="App.showScreen('projects')" style="border-style:solid;border-color:var(--border)">
+      <span style="font-size:18px;line-height:1">◼</span> Мои проекты
+    </button>
+  </section>
+
+  <!-- ===== SCREEN: Projects ===== -->
+  <section class="screen" id="screen-projects">
+    <div class="screen-header">
+      <h1>Проекты</h1>
+    </div>
+    <div class="projects-grid" id="projects-grid"></div>
+  </section>
+
+  <!-- ===== Bottom Navigation ===== -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-screen="morning">
+      <span class="icon">☀️</span>
+      <span>Сегодня</span>
+    </button>
+    <button class="nav-btn" data-screen="evening">
+      <span class="icon">🌙</span>
+      <span>Вечер</span>
+    </button>
+    <button class="nav-btn voice-btn" id="voiceNavBtn">
+      <span class="icon">🎤</span>
+    </button>
+    <button class="nav-btn" data-screen="ideas">
+      <span class="icon">💡</span>
+      <span>Идеи</span>
+    </button>
+    <button class="nav-btn" data-screen="horizon">
+      <span class="icon">✦</span>
+      <span>Горизонт</span>
+    </button>
+  </nav>
+
+  <!-- Projects accessible via horizon screen footer link -->
+
+
+</div><!-- /.app-shell -->
+
+<!-- ===== Modal Overlay ===== -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <div class="modal-title" id="modalTitle">Новая задача</div>
+      <button id="modalCloseBtn" style="background:transparent;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1;padding:4px">×</button>
+    </div>
+
+    <!-- Task Form -->
+    <div id="taskForm" class="modal-form">
+      <div class="form-group">
+        <label class="form-label">Название</label>
+        <input class="form-input" id="taskTitle" type="text" placeholder="Что нужно сделать?">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Тип задачи</label>
+        <div class="type-selector">
+          <button class="type-btn selected" data-type="work">Работа</button>
+          <button class="type-btn" data-type="personal">Личное</button>
+          <button class="type-btn" data-type="rest">Отдых</button>
+          <button class="type-btn" data-type="growth">Рост</button>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Дата</label>
+          <input class="form-input" id="taskDate" type="date">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Время (необяз.)</label>
+          <input class="form-input" id="taskTime" type="time">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top:14px">
+        <label class="form-label">Проект (необяз.)</label>
+        <select class="form-select" id="taskProject">
+          <option value="">Без проекта</option>
+        </select>
+      </div>
+
+      <button class="submit-btn" id="taskSubmitBtn">Сохранить</button>
+    </div>
+
+    <!-- Idea Form -->
+    <div id="ideaForm" class="modal-form" style="display:none">
+      <div class="form-group">
+        <label class="form-label">Идея</label>
+        <textarea class="form-textarea" id="ideaContent" placeholder="Запишите идею, пока не забылась…"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Напомнить (необяз.)</label>
+        <input class="form-input" id="ideaRemind" type="date">
+      </div>
+      <button class="submit-btn" id="ideaSubmitBtn">Сохранить</button>
+    </div>
+
+    <!-- Horizon Form -->
+    <div id="horizonForm" class="modal-form" style="display:none">
+      <div class="form-group">
+        <label class="form-label">Намерение</label>
+        <textarea class="form-textarea" id="horizonContent" placeholder="Осенью отпуск… В 2026 первые продажи Taylor Studio…"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Временной горизонт (необяз.)</label>
+        <input class="form-input" id="horizonTimeframe" type="text" placeholder="Осень 2025, 2026, когда-нибудь…">
+        <div style="margin-top:6px">
+          <div class="chips">
+            <button class="chip" onclick="document.getElementById('horizonTimeframe').value='Осень 2025'">Осень 2025</button>
+            <button class="chip" onclick="document.getElementById('horizonTimeframe').value='2026'">2026</button>
+            <button class="chip" onclick="document.getElementById('horizonTimeframe').value='2027'">2027</button>
+            <button class="chip" onclick="document.getElementById('horizonTimeframe').value='Когда-нибудь'">Когда-нибудь</button>
+          </div>
+        </div>
+      </div>
+      <button class="submit-btn" id="horizonSubmitBtn">Сохранить</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== Voice Overlay ===== -->
+<div class="voice-overlay" id="voiceOverlay">
+  <div class="voice-pulse">🎤</div>
+  <div class="voice-status" id="voiceStatus">Слушаю…</div>
+  <div class="voice-transcript" id="voiceTranscript"></div>
+  <div class="voice-result" id="voiceResult"></div>
+  <button class="voice-cancel-btn" id="voiceCancelBtn">Отмена</button>
+</div>
+
+<!-- ===== Toast ===== -->
+<div class="toast" id="toast"></div>
+
+<script src="/js/api.js"></script>
+<script src="/js/voice.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>

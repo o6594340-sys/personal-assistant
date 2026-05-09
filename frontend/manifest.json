@@ -1,0 +1,17 @@
+{
+  "name": "Мой ассистент",
+  "short_name": "Ассистент",
+  "description": "Персональный планировщик для осознанного дня",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F7F6F3",
+  "theme_color": "#C8A96E",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23C8A96E'/><text y='.9em' font-size='80' x='10'>✦</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
