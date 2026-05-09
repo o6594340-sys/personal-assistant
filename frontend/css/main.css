@@ -606,6 +606,19 @@ h3 { font-size: 15px; font-weight: 600; }
   transition: background .15s;
 }
 .voice-cancel-btn:hover { background: rgba(255,255,255,.18); }
+.voice-done-btn {
+  background: var(--gold);
+  border: 1.5px solid var(--gold);
+  color: #1A1A2E;
+  padding: 12px 32px;
+  border-radius: 40px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity .15s;
+}
+.voice-done-btn:hover { opacity: .85; }
 
 /* ===== Toast ===== */
 .toast {

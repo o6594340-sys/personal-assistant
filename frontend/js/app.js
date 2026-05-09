@@ -26,7 +26,6 @@ const App = (() => {
   // ===== Morning Screen =====
   async function loadMorning() {
     const el = document.getElementById('screen-morning');
-    showLoading(el, 'morning-content');
 
     try {
       const data = await API.getMorning();
@@ -58,7 +57,6 @@ const App = (() => {
   // ===== Evening Screen =====
   async function loadEvening() {
     const el = document.getElementById('screen-evening');
-    showLoading(el, 'evening-content');
 
     try {
       const data = await API.getEvening();

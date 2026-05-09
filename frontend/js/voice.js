@@ -1,18 +1,19 @@
 // Web Speech API wrapper — voice input module
 
 const Voice = (() => {
-  const overlay   = document.getElementById('voiceOverlay');
-  const statusEl  = document.getElementById('voiceStatus');
+  const overlay      = document.getElementById('voiceOverlay');
+  const statusEl     = document.getElementById('voiceStatus');
   const transcriptEl = document.getElementById('voiceTranscript');
-  const resultEl  = document.getElementById('voiceResult');
-  const cancelBtn = document.getElementById('voiceCancelBtn');
-  const pulseEl   = document.querySelector('.voice-pulse');
+  const resultEl     = document.getElementById('voiceResult');
+  const cancelBtn    = document.getElementById('voiceCancelBtn');
+  const doneBtn      = document.getElementById('voiceDoneBtn');
+  const pulseEl      = document.querySelector('.voice-pulse');
 
   let recognition = null;
   let isListening = false;
   let finalText   = '';
+  let cancelled   = false;
 
-  // Check browser support
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const supported = !!SpeechRecognition;
 
@@ -20,47 +21,55 @@ const Voice = (() => {
     if (!supported) return;
     recognition = new SpeechRecognition();
     recognition.lang = 'ru-RU';
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
       isListening = true;
-      setStatus('Слушаю...');
+      setStatus('Слушаю… Говорите, затем нажмите Готово');
       transcriptEl.textContent = '';
       resultEl.textContent = '';
     };
 
     recognition.onresult = (e) => {
       let interim = '';
-      let final = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript;
-        if (e.results[i].isFinal) final += t;
-        else interim += t;
+        if (e.results[i].isFinal) {
+          finalText += t + ' ';
+        } else {
+          interim += t;
+        }
       }
-      if (final) finalText += final;
-      transcriptEl.textContent = finalText || interim;
+      transcriptEl.textContent = (finalText + interim).trim();
     };
 
     recognition.onend = () => {
       isListening = false;
-      if (finalText.trim()) {
-        sendToAPI(finalText.trim());
+      if (cancelled) {
+        close();
+        return;
+      }
+      const text = finalText.trim();
+      if (text) {
+        sendToAPI(text);
       } else {
-        setStatus('Ничего не распознано');
-        setTimeout(close, 1500);
+        setStatus('Ничего не распознано. Попробуйте ещё раз.');
+        setTimeout(close, 2000);
       }
     };
 
     recognition.onerror = (e) => {
       isListening = false;
       if (e.error === 'no-speech') {
-        setStatus('Ничего не услышала. Попробуйте ещё раз.');
-        setTimeout(close, 2000);
+        // With continuous mode, no-speech isn't fatal — just keep going
+        return;
       } else if (e.error === 'not-allowed') {
         setStatus('Нет доступа к микрофону');
         setTimeout(close, 2500);
+      } else if (e.error === 'aborted') {
+        // Aborted on purpose — ignore
       } else {
         setStatus(`Ошибка: ${e.error}`);
         setTimeout(close, 2000);
@@ -69,13 +78,14 @@ const Voice = (() => {
   }
 
   async function sendToAPI(text) {
-    setStatus('Обрабатываю...');
+    setStatus('Обрабатываю…');
     pulseEl.style.background = '#8B5CF6';
+    doneBtn.style.display = 'none';
+    cancelBtn.textContent = 'Закрыть';
     try {
       const data = await API.sendVoice(text);
       resultEl.textContent = data.message;
       setStatus('Готово');
-      // Notify app to refresh current screen
       window.dispatchEvent(new CustomEvent('voice-added', { detail: data }));
       setTimeout(close, 2000);
     } catch (err) {
@@ -91,12 +101,15 @@ const Voice = (() => {
 
   function open() {
     if (!supported) {
-      App.showToast('Ваш браузер не поддерживает голосовой ввод. Попробуйте Chrome.');
+      App.showToast('Голосовой ввод работает только в Chrome или Яндекс браузере');
       return;
     }
+    cancelled = false;
     finalText = '';
     pulseEl.style.background = 'var(--gold)';
     resultEl.textContent = '';
+    doneBtn.style.display = 'inline-block';
+    cancelBtn.textContent = 'Отмена';
     overlay.classList.add('active');
     startListening();
   }
@@ -108,7 +121,6 @@ const Voice = (() => {
     try {
       recognition.start();
     } catch (e) {
-      // Already started — stop and restart
       recognition.stop();
       setTimeout(() => { recognition.start(); }, 200);
     }
@@ -121,14 +133,30 @@ const Voice = (() => {
     overlay.classList.remove('active');
     isListening = false;
     finalText = '';
+    cancelled = false;
   }
 
-  // Cancel button
-  cancelBtn.addEventListener('click', close);
+  // "Готово" — stop and send
+  doneBtn.addEventListener('click', () => {
+    cancelled = false;
+    if (recognition) {
+      try { recognition.stop(); } catch (_) {}
+    } else {
+      close();
+    }
+  });
 
-  // Close on overlay background click
+  // "Отмена" — discard
+  cancelBtn.addEventListener('click', () => {
+    cancelled = true;
+    close();
+  });
+
   overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) close();
+    if (e.target === overlay) {
+      cancelled = true;
+      close();
+    }
   });
 
   return { open, close, supported };
