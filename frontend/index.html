@@ -198,15 +198,31 @@
         </div>
       </div>
 
+      <div class="form-group">
+        <label class="form-label">Дата</label>
+        <input class="form-input" id="taskDate" type="date">
+      </div>
+
       <div class="form-row">
         <div class="form-group" style="margin-bottom:0">
-          <label class="form-label">Дата</label>
-          <input class="form-input" id="taskDate" type="date">
-        </div>
-        <div class="form-group" style="margin-bottom:0">
-          <label class="form-label">Время (необяз.)</label>
+          <label class="form-label">Начало (необяз.)</label>
           <input class="form-input" id="taskTime" type="time">
         </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Конец (необяз.)</label>
+          <input class="form-input" id="taskTimeEnd" type="time">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top:10px;margin-bottom:6px">
+        <label class="multiday-toggle">
+          <input type="checkbox" id="taskMultiDay">
+          <span>Задача на несколько дней</span>
+        </label>
+      </div>
+      <div class="form-group" id="taskDateEndGroup" style="display:none;margin-bottom:0">
+        <label class="form-label">Дата окончания</label>
+        <input class="form-input" id="taskDateEnd" type="date">
       </div>
 
       <div class="form-group" style="margin-top:14px">

@@ -698,6 +698,140 @@ h3 { font-size: 15px; font-weight: 600; }
   margin-left: 5px;
   vertical-align: middle;
 }
+.task-date-range {
+  font-size: 11px;
+  color: var(--gold);
+  background: var(--gold-soft);
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+/* ===== Multiday toggle ===== */
+.multiday-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.multiday-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--gold);
+  flex-shrink: 0;
+}
+
+/* ===== Calendar span highlights ===== */
+.cal-day.in-span:not(.selected) { background: var(--gold-soft); }
+.cal-day.in-span.span-start:not(.selected),
+.cal-day.in-span.span-end:not(.selected) { border-color: var(--gold); }
+
+/* ===== Calendar – Tabs & Expand ===== */
+.cal-tabs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.cal-tabs {
+  display: flex;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.cal-tab {
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .12s, color .12s;
+}
+.cal-tab.active { background: var(--gold); color: #fff; }
+.cal-expand-btn {
+  background: transparent;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  transition: background .15s, color .15s;
+}
+.cal-expand-btn:hover { background: var(--bg); color: var(--text); }
+
+/* ===== Calendar – Week View ===== */
+.week-day-block {
+  margin-bottom: 10px;
+  background: var(--card);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.week-day-block.today .week-day-header { background: var(--gold-soft); }
+.week-day-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.week-day-name {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--muted);
+  min-width: 22px;
+}
+.week-day-block.today .week-day-name { color: var(--gold); }
+.week-day-date { font-size: 14px; font-weight: 600; flex: 1; }
+.week-add-btn {
+  background: transparent;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  width: 26px;
+  height: 26px;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  transition: all .12s;
+}
+.week-add-btn:hover { background: var(--gold-soft); border-color: var(--gold); color: var(--gold); }
+.week-task-list { padding: 8px 12px 10px; }
+.week-task-list .task-item { box-shadow: none; border: 1px solid var(--border); }
+.week-empty { font-size: 12px; color: var(--muted); padding: 6px 2px; font-style: italic; }
+
+/* ===== Calendar – Fullscreen ===== */
+body.cal-fullscreen .bottom-nav { display: none; }
+body.cal-fullscreen #screen-calendar {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  max-width: none;
+  padding: 24px 16px 24px;
+  overflow-y: auto;
+  background: var(--bg);
+}
 
 /* ===== Toast ===== */
 .toast {

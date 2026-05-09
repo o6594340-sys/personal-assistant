@@ -56,6 +56,7 @@ const API = {
     return this.get(`/api/tasks${qs}`);
   },
   getCalendar(year, month) { return this.get(`/api/calendar?year=${year}&month=${month}`); },
+  getWeekTasks(startDate)  { return this.get(`/api/tasks/week?start_date=${startDate}`); },
   createTask(data)       { return this.post('/api/tasks', data); },
   updateTask(id, data)   { return this.put(`/api/tasks/${id}`, data); },
   toggleTask(id)         { return this.put(`/api/tasks/${id}/toggle`); },

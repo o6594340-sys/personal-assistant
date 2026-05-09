@@ -1,4 +1,4 @@
-const CACHE_NAME = 'assistant-v7';
+const CACHE_NAME = 'assistant-v10';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

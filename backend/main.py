@@ -93,7 +93,17 @@ def init_db():
         try:
             conn.execute("ALTER TABLE tasks ADD COLUMN recurrence_id TEXT")
         except Exception:
-            pass  # Column already exists
+            pass
+
+        try:
+            conn.execute("ALTER TABLE tasks ADD COLUMN date_end TEXT")
+        except Exception:
+            pass
+
+        try:
+            conn.execute("ALTER TABLE tasks ADD COLUMN time_end TEXT")
+        except Exception:
+            pass
 
         # Seed default projects if empty
         count = conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
@@ -213,9 +223,11 @@ def generate_recurring_dates(recurrence: str, recurrence_days: list, date_start:
 def ai_parse_voice(text: str, today: str) -> dict:
     prompt = (
         f"Сегодня {today}. Пользователь надиктовал голосом (может быть ошибки распознавания): «{text}». "
-        "Исправь ошибки и определи: задача, повторяющаяся задача или идея. "
+        "Исправь ошибки и определи: задача, повторяющаяся задача, задача на несколько дней или идея. "
         "ЕСЛИ упомянуты повторения (каждый понедельник, каждую пятницу, ежедневно, по вторникам и т.д.) — это recurring_task. "
+        "ЕСЛИ упомянут диапазон дней (с ... по ..., с ... до ..., командировка/отпуск несколько дней) — это task с date_end. "
         "Типы задач: work=работа/встречи/бизнес; personal=семья/дом/личное; rest=прогулка/отдых/спорт/красота; growth=обучение/развитие. "
+        "ЕСЛИ указано время окончания (с X до Y, встреча X–Y, занятие с X по Y) — заполни time_end. "
         "Дни недели вперёд от сегодня. "
         "Для recurrence_days используй ТОЛЬКО английские названия: monday/tuesday/wednesday/thursday/friday/saturday/sunday. "
         "Для recurrence: weekly (раз в неделю) или daily (каждый день). "
@@ -223,7 +235,9 @@ def ai_parse_voice(text: str, today: str) -> dict:
         "{\"type\": \"task|recurring_task|idea\", \"title\": \"...\", "
         "\"task_type\": \"work|personal|rest|growth\", "
         "\"date\": \"YYYY-MM-DD или null\", "
+        "\"date_end\": \"YYYY-MM-DD или null (только если задача на несколько дней)\", "
         "\"time_start\": \"HH:MM или null\", "
+        "\"time_end\": \"HH:MM или null (если сказано 'до X' или 'по X' для времени)\", "
         "\"remind_at\": \"YYYY-MM-DD или null\", "
         "\"recurrence\": \"weekly|daily|null\", "
         "\"recurrence_days\": [\"monday\",...] или [], "
@@ -270,7 +284,9 @@ class TaskCreate(BaseModel):
     title: str
     type: str = "work"
     date: str
+    date_end: Optional[str] = None
     time_start: Optional[str] = None
+    time_end: Optional[str] = None
     project_id: Optional[int] = None
     is_buffer: Optional[bool] = False
 
@@ -315,8 +331,9 @@ def morning():
             conn.execute(
                 "SELECT t.*, p.name as project_name, p.color as project_color "
                 "FROM tasks t LEFT JOIN projects p ON t.project_id = p.id "
-                "WHERE t.date = ? ORDER BY t.time_start NULLS LAST, t.created_at",
-                (today,),
+                "WHERE t.date <= ? AND COALESCE(t.date_end, t.date) >= ? "
+                "ORDER BY t.time_start NULLS LAST, t.created_at",
+                (today, today),
             ).fetchall()
         )
 
@@ -391,8 +408,9 @@ def get_tasks(for_date: Optional[str] = None):
             conn.execute(
                 "SELECT t.*, p.name as project_name, p.color as project_color "
                 "FROM tasks t LEFT JOIN projects p ON t.project_id = p.id "
-                "WHERE t.date = ? ORDER BY t.time_start NULLS LAST, t.created_at",
-                (target,),
+                "WHERE t.date <= ? AND COALESCE(t.date_end, t.date) >= ? "
+                "ORDER BY t.time_start NULLS LAST, t.created_at",
+                (target, target),
             ).fetchall()
         )
     return tasks
@@ -402,13 +420,15 @@ def get_tasks(for_date: Optional[str] = None):
 def create_task(body: TaskCreate):
     with db() as conn:
         cur = conn.execute(
-            "INSERT INTO tasks (title, type, date, time_start, project_id, is_buffer) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO tasks (title, type, date, date_end, time_start, time_end, project_id, is_buffer) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 body.title,
                 body.type,
                 body.date,
+                body.date_end,
                 body.time_start,
+                body.time_end,
                 body.project_id,
                 1 if body.is_buffer else 0,
             ),
@@ -431,8 +451,8 @@ def update_task(task_id: int, body: TaskCreate):
         if not row:
             raise HTTPException(status_code=404, detail="Задача не найдена")
         conn.execute(
-            "UPDATE tasks SET title=?, type=?, date=?, time_start=?, project_id=? WHERE id=?",
-            (body.title, body.type, body.date, body.time_start, body.project_id, task_id),
+            "UPDATE tasks SET title=?, type=?, date=?, date_end=?, time_start=?, time_end=?, project_id=? WHERE id=?",
+            (body.title, body.type, body.date, body.date_end, body.time_start, body.time_end, body.project_id, task_id),
         )
         task = row_to_dict(
             conn.execute(
@@ -462,16 +482,63 @@ def toggle_task(task_id: int):
     return task
 
 
+@app.get("/api/tasks/week")
+def get_week_tasks(start_date: str):
+    start = date.fromisoformat(start_date)
+    result = {}
+    with db() as conn:
+        for i in range(7):
+            d = start + timedelta(days=i)
+            iso = d.isoformat()
+            rows = rows_to_list(
+                conn.execute(
+                    "SELECT t.*, p.name AS project_name, p.color AS project_color "
+                    "FROM tasks t LEFT JOIN projects p ON t.project_id = p.id "
+                    "WHERE t.date <= ? AND COALESCE(t.date_end, t.date) >= ? "
+                    "ORDER BY t.time_start NULLS LAST, t.created_at",
+                    (iso, iso),
+                ).fetchall()
+            )
+            result[iso] = rows
+    return result
+
+
 @app.get("/api/calendar")
 def get_calendar(year: int, month: int):
+    month_str = f"{month:02d}"
+    year_str = str(year)
+    first_day = f"{year_str}-{month_str}-01"
+    last_day = (date(year, month + 1, 1) - timedelta(days=1)).isoformat() if month < 12 else f"{year_str}-12-31"
+
     with db() as conn:
         rows = conn.execute(
             "SELECT date, COUNT(*) as cnt FROM tasks "
             "WHERE strftime('%Y', date) = ? AND strftime('%m', date) = ? "
             "GROUP BY date",
-            (str(year), f"{month:02d}"),
+            (year_str, month_str),
         ).fetchall()
-    return {row["date"]: row["cnt"] for row in rows}
+        span_rows = conn.execute(
+            "SELECT date, date_end FROM tasks "
+            "WHERE date_end IS NOT NULL AND date_end >= ? AND date <= ?",
+            (first_day, last_day),
+        ).fetchall()
+
+    result = {row["date"]: row["cnt"] for row in rows}
+
+    span_days = {}
+    for span in span_rows:
+        start = date.fromisoformat(span["date"])
+        end = date.fromisoformat(span["date_end"])
+        cur = start
+        while cur <= end:
+            iso = cur.isoformat()
+            if first_day <= iso <= last_day and iso not in span_days:
+                span_days[iso] = "start" if cur == start else ("end" if cur == end else "mid")
+            cur += timedelta(days=1)
+
+    if span_days:
+        result["_spans"] = span_days
+    return result
 
 
 @app.delete("/api/tasks/{task_id}", status_code=204)
@@ -523,10 +590,12 @@ def voice_input(body: VoiceInput):
     # Single task
     if item_type in ("task", "recurring_task"):
         task_date = parsed.get("date") or today
+        date_end = parsed.get("date_end")
+        time_end = parsed.get("time_end")
         with db() as conn:
             cur = conn.execute(
-                "INSERT INTO tasks (title, type, date, time_start) VALUES (?, ?, ?, ?)",
-                (title, task_type, task_date, time_start),
+                "INSERT INTO tasks (title, type, date, date_end, time_start, time_end) VALUES (?, ?, ?, ?, ?, ?)",
+                (title, task_type, task_date, date_end, time_start, time_end),
             )
             new_id = cur.lastrowid
         return {

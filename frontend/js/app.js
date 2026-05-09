@@ -213,15 +213,61 @@ const App = (() => {
   let calMonth = new Date().getMonth() + 1;
   let calDots  = {};
   let calSelectedDate = null;
+  let calView = 'month';    // 'month' | 'week'
+  let calWeekStart = null;  // ISO date of Monday of current week
+  let calExpanded = false;
+
+  function weekMonday(isoDate) {
+    const d = new Date(isoDate + 'T00:00:00');
+    const day = d.getDay();
+    d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+    return d.toLocaleDateString('en-CA');
+  }
 
   async function loadCalendar() {
+    if (!calWeekStart) calWeekStart = weekMonday(todayISO());
     await renderCalendarGrid();
   }
 
   async function renderCalendarGrid() {
     const widget = document.getElementById('calendar-widget');
     widget.innerHTML = '';
+    if (calView === 'week') {
+      document.getElementById('calendar-day-section').style.display = 'none';
+    }
+    if (calView === 'month') {
+      await renderMonthView(widget);
+    } else {
+      await renderWeekView(widget);
+    }
+  }
 
+  function buildCalTabs() {
+    const row = document.createElement('div');
+    row.className = 'cal-tabs-row';
+    row.innerHTML = `
+      <div class="cal-tabs">
+        <button class="cal-tab${calView === 'month' ? ' active' : ''}" data-view="month">Месяц</button>
+        <button class="cal-tab${calView === 'week' ? ' active' : ''}" data-view="week">Неделя</button>
+      </div>
+      <button class="cal-expand-btn" title="${calExpanded ? 'Свернуть' : 'Развернуть'}">${calExpanded ? '⤡' : '⤢'}</button>
+    `;
+    row.querySelectorAll('.cal-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        calView = btn.dataset.view;
+        if (calView === 'week') calWeekStart = weekMonday(calSelectedDate || todayISO());
+        renderCalendarGrid();
+      });
+    });
+    row.querySelector('.cal-expand-btn').addEventListener('click', () => {
+      calExpanded = !calExpanded;
+      document.body.classList.toggle('cal-fullscreen', calExpanded);
+      renderCalendarGrid();
+    });
+    return row;
+  }
+
+  async function renderMonthView(widget) {
     let dots = {};
     try {
       dots = await API.getCalendar(calYear, calMonth);
@@ -232,7 +278,6 @@ const App = (() => {
                         'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
     const dayNames = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
 
-    // Header with navigation
     const header = document.createElement('div');
     header.className = 'cal-header';
     header.innerHTML = `
@@ -241,8 +286,8 @@ const App = (() => {
       <button class="cal-nav-btn" id="calNext">›</button>
     `;
     widget.appendChild(header);
+    widget.appendChild(buildCalTabs());
 
-    // Day names row
     const namesRow = document.createElement('div');
     namesRow.className = 'cal-grid';
     dayNames.forEach(d => {
@@ -253,32 +298,26 @@ const App = (() => {
     });
     widget.appendChild(namesRow);
 
-    // Days grid
     const grid = document.createElement('div');
     grid.className = 'cal-grid';
-
     const today = todayISO();
+    const spanDays = dots._spans || {};
     const firstDay = new Date(calYear, calMonth - 1, 1);
-    // Monday-based: 0=Mon, 6=Sun
     let startOffset = (firstDay.getDay() + 6) % 7;
     const daysInMonth = new Date(calYear, calMonth, 0).getDate();
-
-    // Empty cells before first day
-    for (let i = 0; i < startOffset; i++) {
-      grid.appendChild(document.createElement('div'));
-    }
-
+    for (let i = 0; i < startOffset; i++) grid.appendChild(document.createElement('div'));
     for (let d = 1; d <= daysInMonth; d++) {
       const iso = `${calYear}-${String(calMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       const cell = document.createElement('button');
       cell.className = 'cal-day';
       if (iso === today) cell.classList.add('today');
       if (iso === calSelectedDate) cell.classList.add('selected');
+      const spanType = spanDays[iso];
+      if (spanType) cell.classList.add('in-span', `span-${spanType}`);
       cell.innerHTML = `<span>${d}</span>${dots[iso] ? '<i class="cal-dot"></i>' : ''}`;
       cell.addEventListener('click', () => selectCalendarDay(iso));
       grid.appendChild(cell);
     }
-
     widget.appendChild(grid);
 
     document.getElementById('calPrev').addEventListener('click', () => {
@@ -290,6 +329,77 @@ const App = (() => {
       calMonth++;
       if (calMonth > 12) { calMonth = 1; calYear++; }
       renderCalendarGrid();
+    });
+  }
+
+  async function renderWeekView(widget) {
+    const monthNamesShort = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+    const dayNames = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+    const start = new Date(calWeekStart + 'T00:00:00');
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    const weekTitle = `${start.getDate()} ${monthNamesShort[start.getMonth()]}–${end.getDate()} ${monthNamesShort[end.getMonth()]} ${end.getFullYear()}`;
+
+    const header = document.createElement('div');
+    header.className = 'cal-header';
+    header.innerHTML = `
+      <button class="cal-nav-btn" id="calPrev">‹</button>
+      <span class="cal-month-title">${weekTitle}</span>
+      <button class="cal-nav-btn" id="calNext">›</button>
+    `;
+    widget.appendChild(header);
+    widget.appendChild(buildCalTabs());
+
+    let weekData = {};
+    try { weekData = await API.getWeekTasks(calWeekStart); } catch (_) {}
+
+    const today = todayISO();
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(calWeekStart + 'T00:00:00');
+      d.setDate(d.getDate() + i);
+      const iso = d.toLocaleDateString('en-CA');
+      const tasks = weekData[iso] || [];
+
+      const block = document.createElement('div');
+      block.className = `week-day-block${iso === today ? ' today' : ''}`;
+
+      const dayHeader = document.createElement('div');
+      dayHeader.className = 'week-day-header';
+      dayHeader.innerHTML = `
+        <span class="week-day-name">${dayNames[i]}</span>
+        <span class="week-day-date">${d.getDate()} ${monthNamesShort[d.getMonth()]}</span>
+        <button class="week-add-btn" data-date="${iso}" title="Добавить задачу">+</button>
+      `;
+      block.appendChild(dayHeader);
+
+      const taskList = document.createElement('div');
+      taskList.className = 'task-list week-task-list';
+      if (tasks.length === 0) {
+        taskList.innerHTML = '<div class="week-empty">нет задач</div>';
+      } else {
+        tasks.forEach(t => taskList.appendChild(buildTaskItem(t, () => renderCalendarGrid())));
+      }
+      block.appendChild(taskList);
+      widget.appendChild(block);
+    }
+
+    document.getElementById('calPrev').addEventListener('click', () => {
+      const d = new Date(calWeekStart + 'T00:00:00');
+      d.setDate(d.getDate() - 7);
+      calWeekStart = d.toLocaleDateString('en-CA');
+      renderCalendarGrid();
+    });
+    document.getElementById('calNext').addEventListener('click', () => {
+      const d = new Date(calWeekStart + 'T00:00:00');
+      d.setDate(d.getDate() + 7);
+      calWeekStart = d.toLocaleDateString('en-CA');
+      renderCalendarGrid();
+    });
+    widget.querySelectorAll('.week-add-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (projects.length === 0) projects = await API.getProjects().catch(() => []);
+        openModal('task', { date: btn.dataset.date });
+      });
     });
   }
 
@@ -305,7 +415,6 @@ const App = (() => {
     section.style.display = 'block';
     listEl.innerHTML = '<div class="loading-spinner">Загрузка</div>';
 
-    // Add task button for this date
     const addBtn = document.getElementById('calendarAddBtn');
     addBtn.onclick = async () => {
       if (projects.length === 0) projects = await API.getProjects().catch(() => []);
@@ -364,13 +473,19 @@ const App = (() => {
     div.className = `task-item${task.completed ? ' done' : ''}`;
     div.dataset.id = task.id;
 
-    const timeStr = task.time_start ? `<span class="task-time">${task.time_start.slice(0,5)}</span>` : '';
+    const timeRange = task.time_start
+      ? (task.time_end ? `${task.time_start.slice(0,5)}–${task.time_end.slice(0,5)}` : task.time_start.slice(0,5))
+      : '';
+    const dur = (task.time_start && task.time_end) ? calcDuration(task.time_start, task.time_end) : null;
+    const timeStr = timeRange ? `<span class="task-time">${timeRange}${dur ? ` · ${dur}` : ''}</span>` : '';
     const projStr = task.project_name
       ? `<span class="task-project" style="border-left:2px solid ${task.project_color || '#6B7280'};padding-left:5px">${escHtml(task.project_name)}</span>`
       : '';
     const type = task.type || 'work';
 
     const recurStr = task.recurrence_id ? '<span class="task-recur" title="Повторяющаяся задача">↻</span>' : '';
+    const dateRangeStr = (task.date_end && task.date_end !== task.date)
+      ? `<span class="task-date-range">↔ до ${formatDateShort(task.date_end)}</span>` : '';
     div.innerHTML = `
       <input type="checkbox" class="task-check" ${task.completed ? 'checked' : ''}>
       <div class="task-dot ${type}"></div>
@@ -378,7 +493,7 @@ const App = (() => {
         <div class="task-title">${escHtml(task.title)}${recurStr}</div>
         <div class="task-meta">
           <span class="task-type-badge ${type}">${typeLabel(type)}</span>
-          ${timeStr}${projStr}
+          ${timeStr}${projStr}${dateRangeStr}
         </div>
       </div>
       ${onRefresh ? '<button class="task-edit-btn" title="Редактировать">✎</button>' : ''}
@@ -445,7 +560,12 @@ const App = (() => {
       document.getElementById('taskDate').value = prefill?.date || todayISO();
       document.getElementById('taskTitle').value = prefill?.title || '';
       document.getElementById('taskTime').value = prefill?.time_start ? prefill.time_start.slice(0,5) : '';
+      document.getElementById('taskTimeEnd').value = prefill?.time_end ? prefill.time_end.slice(0,5) : '';
       document.getElementById('taskProject').value = prefill?.project_id || '';
+      const isMultiDay = !!(prefill?.date_end);
+      document.getElementById('taskMultiDay').checked = isMultiDay;
+      document.getElementById('taskDateEndGroup').style.display = isMultiDay ? 'block' : 'none';
+      document.getElementById('taskDateEnd').value = prefill?.date_end || '';
       selectType(prefill?.type || 'work');
       populateProjectSelect(prefill?.project_id);
       document.getElementById('taskSubmitBtn').textContent = isEdit ? 'Сохранить' : 'Сохранить';
@@ -494,9 +614,10 @@ const App = (() => {
   // ===== Form Submissions =====
   async function submitTask() {
     const title = document.getElementById('taskTitle').value.trim();
-    const date  = document.getElementById('taskDate').value;
-    const time  = document.getElementById('taskTime').value;
-    const proj  = document.getElementById('taskProject').value;
+    const date    = document.getElementById('taskDate').value;
+    const time    = document.getElementById('taskTime').value;
+    const timeEnd = document.getElementById('taskTimeEnd').value;
+    const proj    = document.getElementById('taskProject').value;
 
     if (!title) { showToast('Введите название задачи'); return; }
     if (!date)  { showToast('Выберите дату'); return; }
@@ -506,11 +627,16 @@ const App = (() => {
     btn.textContent = 'Сохраняю...';
 
     try {
+      const dateEnd = document.getElementById('taskMultiDay')?.checked
+        ? document.getElementById('taskDateEnd').value
+        : null;
       const payload = {
         title,
         type: selectedType,
         date,
+        date_end: dateEnd || null,
         time_start: time || null,
+        time_end: timeEnd || null,
         project_id: proj ? parseInt(proj) : null,
       };
       if (editingTaskId) {
@@ -523,6 +649,11 @@ const App = (() => {
         showToast('Задача добавлена');
       }
       if (currentScreen === 'morning') loadMorning();
+      if (currentScreen === 'calendar') {
+        if (calView === 'week') renderCalendarGrid();
+        else if (calSelectedDate) selectCalendarDay(calSelectedDate);
+        else renderCalendarGrid();
+      }
     } catch (e) {
       showToast(`Ошибка: ${e.message}`);
     } finally {
@@ -606,6 +737,23 @@ const App = (() => {
     return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
   }
 
+  function calcDuration(start, end) {
+    const [sh, sm] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    const mins = (eh * 60 + em) - (sh * 60 + sm);
+    if (mins <= 0) return null;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h === 0) return `${m} мин`;
+    return m > 0 ? `${h} ч ${m} мин` : `${h} ч`;
+  }
+
+  function formatDateShort(iso) {
+    if (!iso) return '';
+    const d = new Date(iso + 'T00:00:00');
+    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+  }
+
   function typeLabel(type) {
     return { work: 'работа', personal: 'личное', rest: 'отдых', growth: 'рост' }[type] || type;
   }
@@ -641,6 +789,12 @@ const App = (() => {
     // Type selector
     document.querySelectorAll('.type-btn').forEach(btn => {
       btn.addEventListener('click', () => selectType(btn.dataset.type));
+    });
+
+    // Multiday checkbox
+    document.getElementById('taskMultiDay')?.addEventListener('change', e => {
+      document.getElementById('taskDateEndGroup').style.display = e.target.checked ? 'block' : 'none';
+      if (!e.target.checked) document.getElementById('taskDateEnd').value = '';
     });
 
     // Form submissions
