@@ -26,31 +26,51 @@ const App = (() => {
   // ===== Morning Screen =====
   async function loadMorning() {
     const el = document.getElementById('screen-morning');
+    const content = document.getElementById('morning-content');
 
     try {
       const data = await API.getMorning();
+      const hour = new Date().getHours();
 
-      // Update date
       el.querySelector('.screen-date').textContent = formatDate(data.date);
 
-      // Quote
-      const qCard = el.querySelector('.quote-card');
-      qCard.querySelector('.quote-text').textContent = `«${data.quote.text}»`;
-      qCard.querySelector('.quote-author').textContent = data.quote.author;
+      content.innerHTML = `
+        <div class="card quote-card">
+          <div class="quote-text">«${escHtml(data.quote.text)}»</div>
+          <div class="quote-author">${escHtml(data.quote.author)}</div>
+        </div>
+        ${hour >= 18 ? `
+          <div class="warn-banner" style="display:flex;background:#F0FDF4;border-color:#86EFAC;color:#166534;">
+            <span class="warn-icon">🌙</span>
+            <span>Уже вечер. Хотите подвести итоги дня?</span>
+            <button id="goToEveningBtn" style="margin-left:auto;background:#16A34A;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:500;font-family:inherit">Итог дня</button>
+          </div>
+        ` : ''}
+        ${data.warn_no_rest ? `
+          <div class="warn-banner warn-no-rest" style="display:flex">
+            <span class="warn-icon">⚠️</span>
+            <span>В плане только рабочие задачи. Добавьте время для отдыха или прогулки.</span>
+          </div>
+        ` : ''}
+        <div class="section-header" style="margin-top:20px">
+          <h2 style="margin-bottom:0">Сегодня</h2>
+        </div>
+        <div class="task-list"></div>
+        <button class="add-btn" id="addTaskBtn">
+          <span style="font-size:18px;line-height:1">+</span> Добавить задачу
+        </button>
+      `;
 
-      // Warn banner
-      const warn = el.querySelector('#warnNoRest');
-      warn.style.display = data.warn_no_rest ? 'flex' : 'none';
+      document.getElementById('addTaskBtn').addEventListener('click', async () => {
+        if (projects.length === 0) projects = await API.getProjects().catch(() => []);
+        openModal('task');
+      });
+      document.getElementById('goToEveningBtn')?.addEventListener('click', () => showScreen('evening'));
 
-      // Tasks
-      renderTasks(el.querySelector('.task-list'), data.tasks, () => loadMorning());
+      renderTasks(content.querySelector('.task-list'), data.tasks, () => loadMorning());
 
-      // Evening suggestion for late hours
-      const hour = new Date().getHours();
-      const suggestion = el.querySelector('.evening-suggestion');
-      if (suggestion) suggestion.style.display = hour >= 18 ? 'flex' : 'none';
     } catch (err) {
-      showError(el, 'morning-content', err.message);
+      content.innerHTML = `<div class="empty-state" style="color:#EF4444">${escHtml(err.message)}</div>`;
     }
   }
 
@@ -490,10 +510,6 @@ const App = (() => {
     document.getElementById('voiceNavBtn').addEventListener('click', () => Voice.open());
 
     // Add buttons
-    document.getElementById('addTaskBtn').addEventListener('click', async () => {
-      if (projects.length === 0) projects = await API.getProjects().catch(() => []);
-      openModal('task');
-    });
     document.getElementById('addIdeaBtn').addEventListener('click', () => openModal('idea'));
     document.getElementById('addHorizonBtn').addEventListener('click', () => openModal('horizon'));
 
