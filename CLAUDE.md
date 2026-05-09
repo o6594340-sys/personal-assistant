@@ -51,7 +51,7 @@ frontend/
 ## База данных (SQLite)
 
 ```sql
-tasks    — id, title, type(work/personal/rest/growth), date, time_start, completed, project_id, is_buffer, created_at
+tasks    — id, title, type(work/personal/rest/growth), date, date_end, time_start, time_end, completed, project_id, is_buffer, created_at
 projects — id, name, color, description
 ideas    — id, content, remind_at, status(pending/archived), created_at
 horizon  — id, content, timeframe, created_at
@@ -73,6 +73,7 @@ quotes   — id, date UNIQUE, text, author  ← кэш цитат, одна на
 | GET | /api/morning | Цитата + задачи на сегодня + warn_no_rest |
 | GET | /api/evening | AI-итог + перенос задач + план на завтра |
 | GET | /api/tasks?for_date= | Задачи на дату |
+| GET | /api/tasks/week?start_date= | Задачи на 7 дней (для week-view календаря) |
 | POST | /api/tasks | Создать задачу |
 | PUT | /api/tasks/{id}/toggle | Переключить выполнено/нет |
 | DELETE | /api/tasks/{id} | Удалить задачу |
@@ -84,6 +85,7 @@ quotes   — id, date UNIQUE, text, author  ← кэш цитат, одна на
 | GET | /api/horizon | Горизонт жизни |
 | POST | /api/horizon | Добавить намерение |
 | DELETE | /api/horizon/{id} | Удалить намерение |
+| GET | /api/calendar?year=&month= | Данные для календаря (кол-во задач + span-дни) |
 
 ---
 
@@ -157,7 +159,25 @@ quotes   — id, date UNIQUE, text, author  ← кэш цитат, одна на
 
 ---
 
-## Запуск
+## Деплой (Railway)
+
+**Продакшн URL:** https://personal-assistant-production-1a7d.up.railway.app
+
+**Railway проект:** https://railway.com/project/0fbb4211-ea0a-4beb-a342-d558115beca7
+
+**Переменные окружения в Railway:**
+- `ANTHROPIC_API_KEY` — ключ Claude API
+- `DATA_DIR` = `/data` — путь к Volume для хранения SQLite БД
+
+**Volume:** смонтирован на `/data`, хранит `assistant.db` между деплоями.
+
+**Автодеплой:** каждый `git push` в `main` → Railway деплоит автоматически.
+
+**Нерешённое:** `/api/morning` возвращает 500 — нужно проверить правильность ANTHROPIC_API_KEY в Railway Variables.
+
+---
+
+## Локальный запуск
 
 ```bash
 # 1. Создать .env с ключом
