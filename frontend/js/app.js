@@ -812,10 +812,15 @@ const App = (() => {
     // Evening suggestion → go to evening screen
     document.getElementById('goToEveningBtn')?.addEventListener('click', () => showScreen('evening'));
 
-    // Voice result → refresh current screen
+    // Voice result → refresh current screen (immediately + after overlay closes)
     window.addEventListener('voice-added', (e) => {
-      if (currentScreen === 'morning') loadMorning();
-      if (currentScreen === 'ideas' && e.detail.type === 'idea') loadIdeas();
+      const refresh = () => {
+        if (currentScreen === 'morning') loadMorning();
+        if (currentScreen === 'calendar' && calSelectedDate) selectCalendarDay(calSelectedDate);
+        if (currentScreen === 'ideas' && e.detail.type === 'idea') loadIdeas();
+      };
+      refresh();
+      setTimeout(refresh, 2500);
     });
 
     // Smart default: if >= 18:00 suggest evening
