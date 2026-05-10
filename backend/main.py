@@ -15,7 +15,7 @@ import anthropic
 
 load_dotenv()
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
 _data_dir = os.getenv("DATA_DIR", os.path.dirname(__file__))
 DB_PATH = os.path.join(_data_dir, "assistant.db")
 FRONTEND_PATH = os.path.join(os.path.dirname(__file__), "..", "frontend")
