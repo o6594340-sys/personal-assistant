@@ -572,7 +572,22 @@ def delete_task(task_id: int):
 @app.post("/api/voice")
 def voice_input(body: VoiceInput):
     today = date.today().isoformat()
-    parsed = ai_parse_voice(body.text, today)
+    try:
+        parsed = ai_parse_voice(body.text, today)
+    except Exception:
+        parsed = {
+            "type": "task",
+            "title": body.text[:200].strip(),
+            "task_type": "personal",
+            "date": today,
+            "date_end": None,
+            "time_start": None,
+            "time_end": None,
+            "remind_at": None,
+            "recurrence": None,
+            "recurrence_days": [],
+            "date_until": None,
+        }
 
     item_type = parsed.get("type", "idea")
     title = parsed.get("title", body.text[:100])
