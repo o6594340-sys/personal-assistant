@@ -400,7 +400,12 @@ def evening():
             ).fetchall()
         )
 
-    summary = ai_evening_summary(done, undone)
+    try:
+        summary = ai_evening_summary(done, undone)
+    except Exception:
+        done_count = len(done)
+        total = done_count + len(undone)
+        summary = f"День завершён. Выполнено {done_count} из {total} задач." if total else "День завершён."
 
     return {
         "date": today,
@@ -735,6 +740,28 @@ def delete_horizon(item_id: int):
         if not row:
             raise HTTPException(status_code=404, detail="Намерение не найдено")
         conn.execute("DELETE FROM horizon WHERE id = ?", (item_id,))
+
+
+# ---------------------------------------------------------------------------
+# Diagnostic
+# ---------------------------------------------------------------------------
+
+@app.get("/api/health")
+def health():
+    import traceback
+    result = {"db": "ok", "anthropic_key": bool(ANTHROPIC_API_KEY), "anthropic": None, "error": None}
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=10,
+            messages=[{"role": "user", "content": "hi"}],
+        )
+        result["anthropic"] = "ok"
+    except Exception as e:
+        result["anthropic"] = "error"
+        result["error"] = traceback.format_exc()
+    return result
 
 
 # ---------------------------------------------------------------------------
