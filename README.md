@@ -124,7 +124,7 @@ my-personal-assistant/
 → задача типа work на сегодня
 ```
 
-Голос работает в Chrome и Edge (ограничение Web Speech API).
+Голос работает в Safari (iPhone), Chrome и Edge. Просто говори естественно — "добавить", "напомни" и подобные слова Claude игнорирует.
 
 ---
 
@@ -147,6 +147,7 @@ PUT  /api/ideas/{id}/archive   — архивировать
 GET  /api/horizon              — горизонт жизни
 POST /api/horizon              — добавить намерение
 DELETE /api/horizon/{id}       — удалить
+GET  /api/health               — диагностика (БД + Claude API)
 ```
 
 Интерактивная документация: `http://localhost:8000/docs`
@@ -164,18 +165,14 @@ DELETE /api/horizon/{id}       — удалить
 
 ---
 
-## Деплой (опционально)
+## Деплой (Railway)
 
-Для запуска в интернете (Railway):
+Продакшн: https://personal-assistant-production-1a7d.up.railway.app
 
-```bash
-# Установить Railway CLI
-npm install -g @railway/cli
+Автодеплой настроен — каждый `git push main` деплоится автоматически.
 
-# Логин и деплой
-railway login
-railway init
-railway up
-```
+**Переменные окружения в Railway:**
+- `ANTHROPIC_API_KEY` — ключ Claude API (без пробелов и переносов строк)
+- `DATA_DIR` = `/data` — путь к Volume для хранения БД между деплоями
 
-Не забудь добавить `ANTHROPIC_API_KEY` в переменные окружения Railway.
+**Диагностика:** если что-то сломалось, открой `/api/health` — покажет статус БД и Claude API.
