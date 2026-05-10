@@ -322,10 +322,24 @@ def rows_to_list(rows) -> list:
 # Routes: Morning & Evening
 # ---------------------------------------------------------------------------
 
+_FALLBACK_QUOTES = [
+    {"text": "Единственный способ делать великую работу — любить то, что делаешь.", "author": "Стив Джобс"},
+    {"text": "Жизнь — это то, что происходит, пока ты строишь другие планы.", "author": "Джон Леннон"},
+    {"text": "Начни там, где ты есть. Используй то, что у тебя есть. Делай что можешь.", "author": "Артур Эш"},
+    {"text": "Красота — это не то, как ты выглядишь. Это то, как ты живёшь.", "author": "Коко Шанель"},
+    {"text": "Не ждите. Подходящего времени никогда не будет.", "author": "Наполеон Хилл"},
+]
+
+
 @app.get("/api/morning")
 def morning():
     today = date.today().isoformat()
-    quote = get_or_create_quote(today)
+    try:
+        quote = get_or_create_quote(today)
+    except Exception:
+        import hashlib
+        idx = int(hashlib.md5(today.encode()).hexdigest(), 16) % len(_FALLBACK_QUOTES)
+        quote = _FALLBACK_QUOTES[idx]
 
     with db() as conn:
         tasks = rows_to_list(
