@@ -221,34 +221,33 @@ def generate_recurring_dates(recurrence: str, recurrence_days: list, date_start:
     return result
 
 
-def ai_parse_voice(text: str, today: str) -> dict:
+def ai_parse_voice(text: str, today: str) -> list:
     prompt = (
-        f"Сегодня {today}. Пользователь надиктовал голосом (может быть ошибки распознавания): «{text}». "
-        "Исправь ошибки. Из title УБЕРИ служебные слова: 'добавить', 'добавь', 'напомни', 'поставь задачу', 'добавить на сегодня', 'добавить на завтра' и подобные — в title должна быть только суть задачи. "
-        "Определи: задача, повторяющаяся задача, задача на несколько дней или идея. "
-        "ЕСЛИ упомянуты повторения (каждый понедельник, каждую пятницу, ежедневно, по вторникам и т.д.) — это recurring_task. "
-        "ЕСЛИ упомянут диапазон дней (с ... по ..., с ... до ..., командировка/отпуск несколько дней) — это task с date_end. "
+        f"Сегодня {today}. Пользователь надиктовал голосом (могут быть ошибки распознавания): «{text}». "
+        "Исправь ошибки. Из title УБЕРИ служебные слова: 'добавить', 'добавь', 'напомни', 'поставь задачу', 'записать идеи', 'идеи на неделю' и подобные — в title только суть. "
+        "ВАЖНО: если перечислено несколько пунктов (1,2,3... или через запятую/перечисление) — создай ОТДЕЛЬНЫЙ объект для каждого пункта. "
+        "ЕСЛИ сказано 'идеи' или 'набросать идеи' или 'идеи на неделю' — все пункты это idea, date=null. "
+        "ЕСЛИ упомянуты повторения (каждый понедельник, ежедневно и т.д.) — это recurring_task. "
+        "ЕСЛИ упомянут диапазон дней (с ... по ...) — это task с date_end. "
         "Типы задач: work=работа/встречи/бизнес; personal=семья/дом/личное; rest=прогулка/отдых/спорт/красота; growth=обучение/развитие. "
-        "ЕСЛИ указано время окончания (с X до Y, встреча X–Y, занятие с X по Y) — заполни time_end. "
         "Дни недели вперёд от сегодня. "
-        "Для recurrence_days используй ТОЛЬКО английские названия: monday/tuesday/wednesday/thursday/friday/saturday/sunday. "
-        "Для recurrence: weekly (раз в неделю) или daily (каждый день). "
-        "Ответь строго JSON без пояснений: "
-        "{\"type\": \"task|recurring_task|idea\", \"title\": \"...\", "
+        "Для recurrence_days используй английские названия: monday/tuesday/wednesday/thursday/friday/saturday/sunday. "
+        "Ответь строго JSON-массивом без пояснений (даже если один элемент — всё равно массив): "
+        "[{\"type\": \"task|recurring_task|idea\", \"title\": \"...\", "
         "\"task_type\": \"work|personal|rest|growth\", "
         "\"date\": \"YYYY-MM-DD или null\", "
-        "\"date_end\": \"YYYY-MM-DD или null (только если задача на несколько дней)\", "
+        "\"date_end\": \"YYYY-MM-DD или null\", "
         "\"time_start\": \"HH:MM или null\", "
-        "\"time_end\": \"HH:MM или null (если сказано 'до X' или 'по X' для времени)\", "
+        "\"time_end\": \"HH:MM или null\", "
         "\"remind_at\": \"YYYY-MM-DD или null\", "
         "\"recurrence\": \"weekly|daily|null\", "
-        "\"recurrence_days\": [\"monday\",...] или [], "
-        "\"date_until\": \"YYYY-MM-DD или null\"}"
+        "\"recurrence_days\": [], "
+        "\"date_until\": \"YYYY-MM-DD или null\"}, ...]"
     )
     client = ai_client()
     message = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=256,
+        max_tokens=1024,
         messages=[{"role": "user", "content": prompt}],
     )
     raw = message.content[0].text.strip()
@@ -256,7 +255,8 @@ def ai_parse_voice(text: str, today: str) -> dict:
         raw = raw.split("```")[1]
         if raw.startswith("json"):
             raw = raw[4:]
-    return json.loads(raw.strip())
+    result = json.loads(raw.strip())
+    return result if isinstance(result, list) else [result]
 
 
 # ---------------------------------------------------------------------------
@@ -575,32 +575,12 @@ def delete_task(task_id: int):
 # Routes: Voice
 # ---------------------------------------------------------------------------
 
-@app.post("/api/voice")
-def voice_input(body: VoiceInput):
-    today = date.today().isoformat()
-    try:
-        parsed = ai_parse_voice(body.text, today)
-    except Exception:
-        parsed = {
-            "type": "task",
-            "title": body.text[:200].strip(),
-            "task_type": "personal",
-            "date": today,
-            "date_end": None,
-            "time_start": None,
-            "time_end": None,
-            "remind_at": None,
-            "recurrence": None,
-            "recurrence_days": [],
-            "date_until": None,
-        }
-
+def _save_parsed_item(parsed: dict, today: str, fallback_text: str) -> dict:
     item_type = parsed.get("type", "idea")
-    title = parsed.get("title", body.text[:100])
+    title = parsed.get("title") or fallback_text[:100]
     task_type = parsed.get("task_type", "personal")
     time_start = parsed.get("time_start")
 
-    # Recurring task
     if item_type == "recurring_task" or (item_type == "task" and parsed.get("recurrence")):
         rec_id = uuid.uuid4().hex[:10]
         dates = generate_recurring_dates(
@@ -616,44 +596,60 @@ def voice_input(body: VoiceInput):
                         "INSERT INTO tasks (title, type, date, time_start, recurrence_id) VALUES (?, ?, ?, ?, ?)",
                         (title, task_type, d, time_start, rec_id),
                     )
-            return {
-                "type": "task",
-                "recurring": True,
-                "count": len(dates),
-                "message": f"Добавлено {len(dates)} повторений: «{title}»",
-            }
+        return {"type": "task", "recurring": True, "count": len(dates), "title": title}
 
-    # Single task
     if item_type in ("task", "recurring_task"):
         task_date = parsed.get("date") or today
-        date_end = parsed.get("date_end")
-        time_end = parsed.get("time_end")
         with db() as conn:
-            cur = conn.execute(
+            conn.execute(
                 "INSERT INTO tasks (title, type, date, date_end, time_start, time_end) VALUES (?, ?, ?, ?, ?, ?)",
-                (title, task_type, task_date, date_end, time_start, time_end),
+                (title, task_type, task_date, parsed.get("date_end"), time_start, parsed.get("time_end")),
             )
-            new_id = cur.lastrowid
-        return {
-            "type": "task",
-            "id": new_id,
-            "message": f"Задача добавлена на {task_date}",
-            "parsed": parsed,
-        }
+        return {"type": "task", "title": title, "date": task_date}
 
-    # Idea
     with db() as conn:
-        cur = conn.execute(
+        conn.execute(
             "INSERT INTO ideas (content, remind_at) VALUES (?, ?)",
-            (parsed.get("title", body.text), parsed.get("remind_at")),
+            (title, parsed.get("remind_at")),
         )
-        new_id = cur.lastrowid
-    return {
-        "type": "idea",
-        "id": new_id,
-        "message": "Идея сохранена",
-        "parsed": parsed,
-    }
+    return {"type": "idea", "title": title}
+
+
+@app.post("/api/voice")
+def voice_input(body: VoiceInput):
+    today = date.today().isoformat()
+    try:
+        items = ai_parse_voice(body.text, today)
+    except Exception:
+        items = [{
+            "type": "task",
+            "title": body.text[:200].strip(),
+            "task_type": "personal",
+            "date": today,
+            "date_end": None, "time_start": None, "time_end": None,
+            "remind_at": None, "recurrence": None, "recurrence_days": [], "date_until": None,
+        }]
+
+    saved = [_save_parsed_item(p, today, body.text) for p in items]
+
+    tasks = [s for s in saved if s["type"] == "task"]
+    ideas = [s for s in saved if s["type"] == "idea"]
+
+    if len(saved) == 1:
+        s = saved[0]
+        if s["type"] == "idea":
+            message = f"Идея сохранена: «{s['title']}»"
+        else:
+            message = f"Задача добавлена на {s.get('date', today)}: «{s['title']}»"
+    else:
+        parts = []
+        if tasks:
+            parts.append(f"задач: {len(tasks)}")
+        if ideas:
+            parts.append(f"идей: {len(ideas)}")
+        message = f"Добавлено {' и '.join(parts)}"
+
+    return {"type": saved[0]["type"] if len(saved) == 1 else "multi", "message": message, "saved": saved}
 
 
 # ---------------------------------------------------------------------------
