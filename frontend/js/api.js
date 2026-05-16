@@ -47,8 +47,9 @@ const API = {
   },
 
   // --- Morning & Evening ---
-  getMorning()  { return this.get('/api/morning'); },
-  getEvening()  { return this.get('/api/evening'); },
+  getMorning()     { return this.get('/api/morning'); },
+  getEvening()     { return this.get('/api/evening'); },
+  refreshQuote()   { return this.post('/api/quote/refresh'); },
 
   // --- Tasks ---
   getTasks(forDate) {

@@ -144,6 +144,11 @@ h3 { font-size: 15px; font-weight: 600; }
   color: #3D3222;
   margin-bottom: 8px;
 }
+.quote-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
 .quote-author {
   font-size: 12px;
   font-weight: 500;
@@ -151,6 +156,18 @@ h3 { font-size: 15px; font-weight: 600; }
   letter-spacing: .04em;
   text-transform: uppercase;
 }
+.quote-refresh-btn {
+  background: transparent;
+  border: none;
+  color: #8A7250;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0.5;
+  transition: opacity .15s;
+  line-height: 1;
+}
+.quote-refresh-btn:hover { opacity: 1; }
 .quote-loading {
   color: var(--muted);
   font-style: italic;

@@ -831,6 +831,20 @@ def delete_horizon(item_id: int):
 # Diagnostic
 # ---------------------------------------------------------------------------
 
+@app.post("/api/quote/refresh")
+def refresh_quote():
+    today = date.today().isoformat()
+    with db() as conn:
+        conn.execute("DELETE FROM quotes WHERE date = ?", (today,))
+    try:
+        quote = get_or_create_quote(today)
+    except Exception:
+        import hashlib
+        idx = int(hashlib.md5(today.encode()).hexdigest(), 16) % len(_FALLBACK_QUOTES)
+        quote = _FALLBACK_QUOTES[idx]
+    return quote
+
+
 @app.get("/api/health")
 def health():
     import traceback

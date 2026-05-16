@@ -38,7 +38,10 @@ const App = (() => {
       content.innerHTML = `
         <div class="card quote-card">
           <div class="quote-text">«${escHtml(data.quote.text)}»</div>
-          <div class="quote-author">${escHtml(data.quote.author)}</div>
+          <div class="quote-footer">
+            <div class="quote-author">${escHtml(data.quote.author)}</div>
+            <button class="quote-refresh-btn" title="Другая цитата">↻</button>
+          </div>
         </div>
         ${hour >= 18 ? `
           <div class="warn-banner" style="display:flex;background:#F0FDF4;border-color:#86EFAC;color:#166534;">
@@ -67,6 +70,19 @@ const App = (() => {
         openModal('task');
       });
       document.getElementById('goToEveningBtn')?.addEventListener('click', () => showScreen('evening'));
+
+      content.querySelector('.quote-refresh-btn').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        btn.style.opacity = '0.4';
+        btn.disabled = true;
+        try {
+          const q = await API.refreshQuote();
+          content.querySelector('.quote-text').textContent = `«${q.text}»`;
+          content.querySelector('.quote-author').textContent = q.author;
+        } catch { }
+        btn.style.opacity = '';
+        btn.disabled = false;
+      });
 
       renderTasks(content.querySelector('.task-list'), data.tasks, () => loadMorning());
 
