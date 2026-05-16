@@ -408,9 +408,21 @@ _FALLBACK_QUOTES = [
 ]
 
 
+def rollover_past_tasks(today: str):
+    """Move uncompleted single-day tasks from past dates to today."""
+    with db() as conn:
+        conn.execute(
+            "UPDATE tasks SET date = ? "
+            "WHERE date < ? AND completed = 0 AND (date_end IS NULL OR date_end < ?)",
+            (today, today, today),
+        )
+
+
 @app.get("/api/morning")
 def morning():
     today = date.today().isoformat()
+    rollover_past_tasks(today)
+
     try:
         quote = get_or_create_quote(today)
     except Exception:
