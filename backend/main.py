@@ -127,7 +127,7 @@ def init_db():
 def ai_client():
     if not ANTHROPIC_API_KEY:
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY не задан в .env")
-    return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, timeout=15.0)
 
 
 def get_or_create_quote(today: str) -> dict:
@@ -850,7 +850,7 @@ def health():
     import traceback
     result = {"db": "ok", "anthropic_key": bool(ANTHROPIC_API_KEY), "anthropic": None, "error": None}
     try:
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, timeout=8.0)
         client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=10,
